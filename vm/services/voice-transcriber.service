@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenClaw Voice Transcriber Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/voice-transcriber
+EnvironmentFile=/opt/voice-transcriber/.env
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/voice-transcriber.log
+StandardError=append:/var/log/voice-transcriber.log
+
+[Install]
+WantedBy=multi-user.target
