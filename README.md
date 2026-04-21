@@ -2,6 +2,8 @@
 
 Complete setup for voice transcription system with OpenClaw agent "Lucy" on Discord, using Whisper transcription service on macOS and voice transcriber bot in Ubuntu VM.
 
+**GitHub Repository**: https://github.com/opends007-prog/openclaw-voice-setup
+
 ## Overview
 
 This setup includes:
@@ -18,6 +20,7 @@ This setup includes:
 3. Tailscale account
 4. Discord bot token for OpenClaw
 5. Ubuntu 22.04 LTS (recommended for Orbstack VM)
+6. Git (for cloning this repository)
 
 ## Repository Structure
 
@@ -46,7 +49,17 @@ This setup includes:
 
 ## Setup Instructions
 
-### 1. Mac Setup
+### 1. Get the Repository
+
+On any computer (your Mac or another device):
+
+```bash
+# Clone the repository
+git clone https://github.com/opends007-prog/openclaw-voice-setup.git
+cd openclaw-voice-setup
+```
+
+### 2. Mac Setup
 
 1. Navigate to the `mac/` directory:
    ```bash
@@ -56,7 +69,7 @@ This setup includes:
 2. Copy the example environment file and edit it:
    ```bash
    cp .env.example .env
-   # Edit .env to set your preferences
+   # Edit .env to set your preferences (optional - defaults work)
    ```
 
 3. Run the install script:
@@ -70,24 +83,25 @@ This setup includes:
    curl http://localhost:8080/inference -X POST -H "Content-Type: audio/wav" --data-binary @test.wav
    ```
 
-### 2. Orbstack VM Setup
+### 3. Orbstack VM Setup
 
 1. Follow instructions in `orbstack/setup-instructions.md` to create Ubuntu VM
 
 2. Copy this repository to the VM:
    ```bash
    # From your Mac, assuming VM IP is 192.168.64.2
-   scp -r ../openclaw-voice-setup ubuntu@192.168.64.2:~/
+   scp -r . ubuntu@192.168.64.2:~/
+   # Or if you're already on the VM, you cloned it directly
    ```
 
-### 3. Tailscale Setup
+### 4. Tailscale Setup
 
 1. Follow instructions in `tailscale/setup-instructions.md` to:
    - Install Tailscale on both Mac and VM
    - Authenticate with your Tailscale account
    - Note the Tailscale IP of your Mac (should be 100.67.79.42)
 
-### 4. VM Setup
+### 5. VM Setup
 
 1. Navigate to the `vm/` directory in the VM:
    ```bash
@@ -99,6 +113,7 @@ This setup includes:
    cp voice-transcriber/.env.example voice-transcriber/.env
    cp openclaw-config/openclaw.json.example openclaw-config/openclaw.json
    # Edit .env files to set your tokens and Tailscale IP
+   # IMPORTANT: Set WHISPER_API_URL to http://[YOUR_MAC_TAILSCALE_IP]:8080/inference
    ```
 
 3. Run the setup script:
@@ -106,6 +121,32 @@ This setup includes:
    chmod +x setup.sh
    sudo ./setup.sh
    ```
+
+## Configuration Details
+
+### Environment Files to Customize:
+
+**Mac (.env)**:
+```
+WHISPER_MODEL_PATH=/usr/local/share/whisper.cpp/ggml-medium.en.bin
+WHISPER_PORT=8080
+TAILSCALE_MAC_IP=100.67.79.42
+```
+
+**VM Voice Transcriber (.env)**:
+```
+VOICE_BOT_TOKEN=your_discord_bot_token_here
+WHISPER_API_URL=http://100.67.79.42:8080/inference  # UPDATE WITH YOUR MAC'S TAILSCALE IP
+```
+
+**VM OpenClaw Config (openclaw.json)**:
+```json
+{
+  "agentName": "Lucy",
+  "discordToken": "your_discord_bot_token_here",
+  // ... other settings
+}
+```
 
 ## Troubleshooting
 
