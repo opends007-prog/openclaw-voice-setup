@@ -1,17 +1,10 @@
 {
   "agentName": "Lucy",
+  "_comment_token": "Use the SAME Discord bot token as in voice-transcriber/.env",
   "discordToken": "YOUR_DISCORD_BOT_TOKEN_HERE",
   "commandPrefix": "!",
-  "autoConnectVoice": true,
-  "voiceChannels": ["general", "voice-chat"],
-  "textChannels": ["general", "bot-commands"],
   "logging": {
     "level": "info",
     "file": "/opt/openclaw/logs/lucy.log"
-  },
-  "features": {
-    "voiceTranscription": true,
-    "textToSpeech": false,
-    "musicPlayer": false
   }
 }

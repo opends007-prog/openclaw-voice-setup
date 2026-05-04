@@ -1,17 +1,26 @@
 [Unit]
-Description=OpenClaw Voice Transcriber Bot
-After=network.target
+Description=Discord Voice Transcriber Bot
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=openclaw
+Group=openclaw
 WorkingDirectory=/opt/voice-transcriber
 EnvironmentFile=/opt/voice-transcriber/.env
 ExecStart=/usr/bin/node index.js
-Restart=always
+Restart=on-failure
 RestartSec=10
-StandardOutput=append:/var/log/voice-transcriber.log
-StandardError=append:/var/log/voice-transcriber.log
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/voice-transcriber/temp_audio
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

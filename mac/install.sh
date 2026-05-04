@@ -1,83 +1,141 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Setting up OpenClaw Voice Transcription System on Mac"
+# ──────────────────────────────────────────────────────────────────────────────
+# Mac setup script for OpenClaw Voice Transcription System
+# Installs whisper.cpp, downloads the model, configures Tailscale,
+# and registers whisper-server as a launchd service.
+# ──────────────────────────────────────────────────────────────────────────────
 
-# Check if running as root (launchd plist needs root)
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root (use sudo)"
+SCRIPTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPTDIR/.env" 2>/dev/null || true
+
+MODEL_PATH="${WHISPER_MODEL_PATH:-/usr/local/share/whisper.cpp/ggml-medium.en.bin}"
+WHISPER_PORT="${WHISPER_PORT:-8080}"
+MODEL_DIR="$(dirname "$MODEL_PATH")"
+LOG_DIR="/var/log/whisper-server"
+
+echo "=== OpenClaw Voice – Mac Setup ==="
+echo ""
+
+# ── 1. Homebrew ──────────────────────────────────────────────────────────────
+if ! command -v brew &>/dev/null; then
+  echo "[1/6] Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+else
+  echo "[1/6] Homebrew already installed."
+fi
+
+# ── 2. whisper.cpp ───────────────────────────────────────────────────────────
+echo "[2/6] Installing whisper.cpp..."
+brew install whisper.cpp 2>/dev/null || brew upgrade whisper.cpp 2>/dev/null || true
+
+# Detect correct binary path (Apple Silicon vs Intel)
+if [ -f "/opt/homebrew/bin/whisper-server" ]; then
+  WHISPER_BIN="/opt/homebrew/bin/whisper-server"
+elif [ -f "/usr/local/bin/whisper-server" ]; then
+  WHISPER_BIN="/usr/local/bin/whisper-server"
+else
+  echo "ERROR: whisper-server binary not found after install."
   exit 1
 fi
+echo "  → whisper-server at $WHISPER_BIN"
 
-# Source environment variables
-source .env
-
-# Install Homebrew if not present
-if ! command -v brew &> /dev/null; then
-  echo "Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
-
-# Install whisper.cpp
-echo "Installing whisper.cpp..."
-brew install whisper.cpp
-
-# Download the model if not already present
-MODEL_PATH="${WHISPER_MODEL_PATH:-/usr/local/share/whisper.cpp/ggml-medium.en.bin}"
-MODEL_DIR=$(dirname "$MODEL_PATH")
-
-if [ ! -f "$MODEL_PATH" ]; then
-  echo "Downloading ggml-medium.en.bin model..."
-  mkdir -p "$MODEL_DIR"
-  curl -L -o "$MODEL_PATH" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin
-  echo "Model downloaded to $MODEL_PATH"
+# ── 3. Model ─────────────────────────────────────────────────────────────────
+if [ -f "$MODEL_PATH" ]; then
+  echo "[3/6] Model already exists at $MODEL_PATH"
 else
-  echo "Model already exists at $MODEL_PATH"
+  echo "[3/6] Downloading ggml-medium.en.bin (≈ 1.4 GB)..."
+  mkdir -p "$MODEL_DIR"
+  curl -L --progress-bar -o "$MODEL_PATH" \
+    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin
+  echo "  → Model saved to $MODEL_PATH"
 fi
 
-# Install Tailscale if not present
-if ! command -v tailscale &> /dev/null; then
-  echo "Installing Tailscale..."
+# ── 4. Tailscale ─────────────────────────────────────────────────────────────
+if ! command -v tailscale &>/dev/null; then
+  echo "[4/6] Installing Tailscale..."
   curl -fsSL https://tailscale.com/install.sh | sh
+else
+  echo "[4/6] Tailscale already installed."
 fi
+echo ""
+echo "  ⚠  IMPORTANT: Authenticate Tailscale if you haven't already:"
+echo "     sudo tailscale up"
+echo "     Then note your Tailscale IP:  tailscale ip"
+echo "     You will need it when configuring the VM."
+echo ""
+
+# ── 5. launchd service ───────────────────────────────────────────────────────
+echo "[5/6] Installing whisper-server launchd service..."
+
+# Generate the plist dynamically so paths are correct
+PLIST_PATH="/Library/LaunchDaemons/com.openclaw.whisper-server.plist"
+
+cat > "$PLIST_PATH" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.openclaw.whisper-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${WHISPER_BIN}</string>
+    <string>-m</string>
+    <string>${MODEL_PATH}</string>
+    <string>--port</string>
+    <string>${WHISPER_PORT}</string>
+    <string>--host</string>
+    <string>0.0.0.0</string>
+    <string>-t</string>
+    <string>8</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${LOG_DIR}/whisper-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>${LOG_DIR}/whisper-server.log</string>
+  <key>WorkingDirectory</key>
+  <string>${MODEL_DIR}</string>
+</dict>
+</plist>
+PLIST
 
 # Create log directory
-LOG_DIR="/var/log/whisper-server"
 mkdir -p "$LOG_DIR"
-touch "$LOG_DIR/whisper-server.log"
-chown "$(whoami):admin" "$LOG_DIR/whisper-server.log"
 
-# Copy launchd service file
-echo "Installing whisper-server launchd service..."
-cp whisper-server.plist /Library/LaunchDaemons/
-chown root:wheel /Library/LaunchDaemons/whisper-server.plist
-chmod 644 /Library/LaunchDaemons/whisper-server.plist
+# Unload old version if present, then load new
+launchctl unload "$PLIST_PATH" 2>/dev/null || true
+launchctl load "$PLIST_PATH"
+launchctl start com.openclaw.whisper-server
 
-# Load and start the service
-echo "Loading whisper-server service..."
-launchctl unload /Library/LaunchDaemons/whisper-server.plist 2>/dev/null || true
-launchctl load /Library/LaunchDaemons/whisper-server.plist
-launchctl start whisper-server
+echo "  → Service loaded."
 
-# Wait a moment for service to start
+# ── 6. Verify ────────────────────────────────────────────────────────────────
+echo "[6/6] Verifying..."
 sleep 3
 
-# Test the endpoint
-echo "Testing whisper-server endpoint..."
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:${WHISPER_PORT:-8080}/inference | grep -q "200\|400"; then
-  echo "✓ Whisper-server is responding on port ${WHISPER_PORT:-8080}"
+if launchctl list | grep -q "com.openclaw.whisper-server"; then
+  echo "  ✓ whisper-server service is running."
 else
-  echo "✗ Whisper-server may not be responding correctly"
-  echo "Check logs with: tail -f $LOG_DIR/whisper-server.log"
+  echo "  ✗ whisper-server service did NOT start. Check logs:"
+  echo "    tail -f ${LOG_DIR}/whisper-server.log"
 fi
 
 echo ""
-echo "Setup complete!"
-echo "Whisper-server is now running as a service on port ${WHISPER_PORT:-8080}"
-echo "To check status: sudo launchctl list | grep whisper"
-echo "To view logs: sudo tail -f $LOG_DIR/whisper-server.log"
+echo "=== Mac setup complete ==="
 echo ""
-echo "Remember to:"
-echo "1. Install Tailscale and authenticate"
-echo "2. Note your Mac's Tailscale IP (should be 100.67.79.42)"
-echo "3. Set up the VM using the instructions in vm/setup.sh"
+echo "Next steps:"
+echo "  1. Make sure Tailscale is authenticated:  sudo tailscale up"
+echo "  2. Note your Tailscale IP:                tailscale ip"
+echo "  3. Set up the VM (see vm/setup.sh)"
+echo ""
+echo "Commands:"
+echo "  Check status:  sudo launchctl list | grep whisper"
+echo "  View logs:     tail -f ${LOG_DIR}/whisper-server.log"
+echo "  Restart:       sudo launchctl kickstart -k system/com.openclaw.whisper-server"

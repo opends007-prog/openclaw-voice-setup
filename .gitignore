@@ -1,0 +1,21 @@
+# Environment files with secrets
+**/.env
+**/openclaw.json
+
+# Node.js
+**/node_modules/
+**/package-lock.json
+
+# Temp audio files
+**/temp_audio/
+**/*.raw
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+**/*.log

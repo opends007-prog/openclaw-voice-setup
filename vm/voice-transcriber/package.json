@@ -1,18 +1,18 @@
 {
   "name": "voice-transcriber-bot",
   "version": "1.0.0",
-  "description": "Voice transcription bot for OpenClaw that sends audio to whisper-server",
+  "description": "Voice transcription bot that converts Discord voice to text via whisper-server",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "keywords": ["voice", "transcription", "whisper", "discord", "bot"],
-  "author": "OpenClaw Voice Setup",
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.14.1",
+    "@discordjs/voice": "^0.17.0",
+    "@discordjs/opus": "^0.9.0",
     "dotenv": "^16.4.5",
-    "node-fetch": "^3.3.2"
+    "libsodium-wrappers": "^0.7.11"
   }
 }

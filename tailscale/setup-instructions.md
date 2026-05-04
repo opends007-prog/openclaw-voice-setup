@@ -1,105 +1,89 @@
 # Tailscale Setup Instructions
 
+Tailscale creates a secure, private network between your Mac and VM so the voice transcriber can reach whisper-server.
+
 ## Prerequisites
 
 1. Tailscale account (sign up at https://tailscale.com/signup)
-2. Admin access to your machines
+2. Admin access to both machines
 
 ## Installation
 
-### On Mac M1
+### On Mac
 
 ```bash
-# Install Tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
-
-# Start and authenticate
 sudo tailscale up
-
-# After authentication, get your IP
-tailscale ip
-# Should show something like: 100.x.y.z (your Mac's Tailscale IP)
 ```
 
 ### On Ubuntu VM
 
 ```bash
-# Install Tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
-
-# Start and authenticate (use same account as Mac)
 sudo tailscale up
+```
 
-# After authentication, get your IP
+Both machines must authenticate with the **same Tailscale account**.
+
+## Find Your Tailscale IPs
+
+On **each** machine, run:
+
+```bash
 tailscale ip
-# Should show something like: 100.x.y.z (your VM's Tailscale IP)
 ```
 
-## Configuration for This Setup
+Note the output:
 
-### Important: MACHINE IP ADDRESSES
+| Machine | Example IP | What to do with it |
+|---|---|---|
+| **Mac** (runs whisper-server) | `100.x.y.z` | Enter this in the VM's `.env` as `WHISPER_API_URL` |
+| **VM** (runs bots) | `100.x.y.z` | Not needed for this setup |
 
-In this setup, we rely on Tailscale IPs for reliable communication:
-- **Mac** (running whisper-server): Should be `100.67.79.42` (as mentioned in your setup)
-- **VM** (running voice transcriber and OpenClaw): Will get its own Tailscale IP
+## Verify Connection
 
-### Verifying Connection
+From the VM, test connectivity to the Mac:
 
-From the VM, test connection to Mac:
 ```bash
-# Replace with your Mac's actual Tailscale IP
-ping 100.67.79.42
-curl http://100.67.79.42:8080/
+# Ping the Mac
+ping <MAC_TAILSCALE_IP>
+
+# Test whisper-server (after Mac setup is complete)
+curl http://<MAC_TAILSCALE_IP>:8080/
 ```
 
-From Mac, test connection to VM:
+From the Mac, test connectivity to the VM:
+
 ```bash
-# Replace with your VM's actual Tailscale IP
 ping <VM_TAILSCALE_IP>
 ```
 
-### Making Tailscale Start on Boot
+## Enable on Boot
 
-#### On Mac:
-Tailscale service installed by the installer should auto-start.
+Tailscale should auto-start by default after installation. To verify:
 
-#### On Ubuntu VM:
 ```bash
-sudo systemctl enable tailscaled
-sudo systemctl start tailscaled
+# On Mac:
+sudo launchctl list | grep tailscale
+
+# On Ubuntu VM:
+sudo systemctl status tailscaled
 ```
 
 ## Troubleshooting
 
-### Cannot Connect After Installation
-1. Ensure you're logged into the same Tailscale account on both devices
-2. Check firewall settings - Tailscale uses WireGuard (typically UDP 51820)
-3. Try restarting Tailscale:
-   - Mac: `sudo tailscale down` then `sudo tailscale up`
-   - Ubuntu: `sudo systemctl restart tailscaled`
+### Cannot connect
 
-### IP Address Changes
-Tailscale IPs are generally stable but can change if:
-- You're removed and re-added to the tailnet
-- The subnet manager reassigns IPs
+1. Verify both machines show up in `tailscale status`
+2. Check they're on the same tailnet (same account)
+3. Restart Tailscale:
+   - Mac: `sudo tailscale down && sudo tailscale up`
+   - VM: `sudo systemctl restart tailscaled && sudo tailscale up`
 
-To find current IPs:
-- On any machine: `tailscale ip`
-- To see all devices: `tailscale status`
+### IP address changes
 
-### DNS Issues
-If you can't resolve `tailscale` domains:
-```bash
-# Test Tailscale DNS
-tailscale ping -c 4 google.com
-```
+Tailscale IPs are generally stable but can change if a machine is removed and re-added to the tailnet. Always check with `tailscale ip` after re-authentication.
 
-## Updating Tailscale
+### Firewall issues
 
-```bash
-# On both Mac and Ubuntu:
-curl -fsSL https://tailscale.com/install.sh | sh
-# Then restart:
-sudo tailscale up  # Mac
-sudo systemctl restart tailscaled  # Ubuntu
-```
+Tailscale uses WireGuard (UDP). If you have a strict firewall, ensure UDP traffic is allowed on the Tailscale interface.

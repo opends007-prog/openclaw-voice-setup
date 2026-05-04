@@ -1,18 +1,28 @@
 [Unit]
-Description=OpenClaw Gateway Service for Lucy
-After=network.target
+Description=OpenClaw Gateway (Lucy Agent)
+After=network-online.target voice-transcriber.service
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=root
+User=openclaw
+Group=openclaw
 WorkingDirectory=/opt/openclaw
-EnvironmentFile=/opt/openclaw/openclaw.json
-# Assuming OpenClaw is installed globally or via npm
-ExecStart=/usr/bin/node /opt/openclaw/index.js
-Restart=always
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
 RestartSec=10
-StandardOutput=append:/var/log/openclaw-gateway.log
-StandardError=append:/var/log/openclaw-gateway.log
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables are loaded by OpenClaw itself from its config file.
+# If OpenClaw supports an .env file, set EnvironmentFile here.
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/openclaw/logs
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
