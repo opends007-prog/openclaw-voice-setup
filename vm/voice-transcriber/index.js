@@ -20,10 +20,13 @@ const { execSync } = require('child_process');
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
-const WHISPER_API_URL =
-  process.env.WHISPER_API_URL || 'http://100.67.79.42:8080/inference';
+const WHISPER_API_URL = process.env.WHISPER_API_URL;
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 
+if (!WHISPER_API_URL) {
+  process.stderr.write('ERROR: WHISPER_API_URL is not set in .env\n');
+  process.exit(1);
+}
 if (!DISCORD_TOKEN) {
   process.stderr.write('ERROR: DISCORD_TOKEN is not set in .env\n');
   process.exit(1);
